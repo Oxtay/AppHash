@@ -295,7 +295,6 @@ class Welcome(BlogHandler):
 class MainPage(BlogHandler):
     def get(self):
         self.response.write("Hello and Welcome!")
-        self.redirect('/blog')
             
 
 application = webapp2.WSGIApplication([
@@ -303,9 +302,9 @@ application = webapp2.WSGIApplication([
                         ('/blog/?(?:\.json)?', BlogFront),
                         ('/blog/newpost', NewPost),
                         ('/blog/([0-9]+)(?:\.json)?', PostPage), 
-                        ('/signup', Register),
-                        ('/login', Login),
-                        ('/logout', Logout), 
-                        ('/welcome', Welcome)
+                        ('/blog/signup', Register),
+                        ('/blog/login', Login),
+                        ('/blog/logout', Logout), 
+                        ('/blog/welcome', Welcome)
                         ], 
                         debug=True)
