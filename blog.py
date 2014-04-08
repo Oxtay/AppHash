@@ -5,6 +5,7 @@ import jinja2
 import hmac
 import hashlib
 import random, string
+import json
 from google.appengine.ext import db
 
 THANKS      = "Thank you! That's a valid response."
@@ -53,6 +54,11 @@ class BlogHandler(webapp2.RequestHandler):
     def render(self, template, **kw):
         self.write(self.render_str(template, **kw))
         
+    def render_json(self, d):
+        json_str = json.dumps(d)
+        self.response.headers.add_header('content-type', 'application/json', charset='utf-8')
+        self.write(json_str)
+        
     def set_secure_cookie(self, name, val):
         cookie_val = make_secure_val(val)
         self.response.headers.add_header(
@@ -73,6 +79,11 @@ class BlogHandler(webapp2.RequestHandler):
         webapp2.RequestHandler.initialize(self, *a, **kw)
         uid = self.read_secure_cookie('user_id')
         self.user = uid and User.by_id(int(uid))
+        
+        if self.request.url.endswith('.json'):
+            self.format = 'json'
+        else:
+            self.format = 'html'
         
 
 ###########################################
@@ -102,7 +113,7 @@ class User(db.Model):
     
     @classmethod
     def by_id(cls, uid):
-        return cls.get_by_id(uid, parent = users_key())
+        return cls.get_by_id(uid)
 
     @classmethod
     def by_name(cls, name):
@@ -112,8 +123,7 @@ class User(db.Model):
     @classmethod
     def register(cls, name, pw, email = None):
         pw_hash = make_pw_hash(name, pw)
-        return cls(parent = users_key(),
-                    name = name,
+        return cls(name = name,
                     pw_hash = pw_hash,
                     email = email)
 
@@ -138,22 +148,36 @@ class Post(db.Model):
     def render(self):
         self._render_text = self.content.replace('\n', '<br>')
         return render_str("post.html", p = self)
+        
+    def as_dict(self):
+        time_fmt = '%c'
+        d = {'subject': self.subject,
+            'content': self.content,
+            'created': self.created.strftime(time_fmt),
+            'last_modified': self.last_modified.strftime(time_fmt)}
+        return d
 
 class BlogFront(BlogHandler):
     def get(self):
         posts = greetings = Post.all().order('-created')
-        self.render('front.html', posts = posts)
+        #posts = get_posts(self.request.remote_addr)
+        if self.format == 'html':
+            self.render('front.html', posts = posts)
+        else:
+            self.render_json([p.as_dict() for p in posts])
 
 class PostPage(BlogHandler):
     def get(self, post_id):
-        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        key = db.Key.from_path('Post', int(post_id))
         post = db.get(key)
 
         if not post:
             self.error(404)
             return
-
-        self.render("permalink.html", post = post)
+        if self.format == 'html':
+            self.render("permalink.html", post = post)
+        else:
+            self.render_json(post.as_dict())
 
 class NewPost(BlogHandler):
     def get(self):
@@ -170,7 +194,7 @@ class NewPost(BlogHandler):
         content = self.request.get('content')
 
         if subject and content:
-            p = Post(parent = blog_key(), subject = subject, content = content)
+            p = Post(subject = subject, content = content)
             p.put()
             self.redirect('/blog/%s' % str(p.key().id()))
         else:
@@ -276,9 +300,9 @@ class MainPage(BlogHandler):
 
 application = webapp2.WSGIApplication([
                         ('/', MainPage), 
-                        ('/blog/?', BlogFront),
+                        ('/blog/?(?:\.json)?', BlogFront),
                         ('/blog/newpost', NewPost),
-                        ('/blog/([0-9]+)', PostPage), 
+                        ('/blog/([0-9]+)(?:\.json)?', PostPage), 
                         ('/signup', Register),
                         ('/login', Login),
                         ('/logout', Logout), 
