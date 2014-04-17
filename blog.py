@@ -143,7 +143,7 @@ class User(db.Model):
 ########################################### 
 def age_set(key, value):
     save_time = datetime.utcnow()
-    memcache.set(key, (val, save_time))
+    memcache.set(key, (value, save_time))
     
 def age_get(key):
     r = memcache.get(key)
@@ -168,7 +168,7 @@ def get_posts(update = False):
         age_set(mc_key, posts)
     return posts, age
     
-def age_str():
+def age_str(age):
     s = 'queried %s seconds ago'
     age = int(age)
     if age == 1:
