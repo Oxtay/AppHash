@@ -6,6 +6,9 @@ import hmac
 import hashlib
 import random, string
 import json
+from datetime import datetime, timedelta
+
+from google.appengine.api import memcache
 from google.appengine.ext import db
 
 THANKS      = "Thank you! That's a valid response."
@@ -138,6 +141,39 @@ class User(db.Model):
 #               Blog Material             #
 #                                         #
 ########################################### 
+def age_set(key, value):
+    save_time = datetime.utcnow()
+    memcache.set(key, (val, save_time))
+    
+def age_get(key):
+    r = memcache.get(key)
+    if r:
+        val, save_time = r
+        age = (datetime.utcnow() - save_time).total_seconds()
+    else:
+        val, age = None, 0
+    return val, age
+    
+def add_post(ip, post):
+    post.put()
+    get_posts(update = True)
+    return str(post.key().id())
+
+def get_posts(update = False):
+    q = Post.all().order('-created').fetch(limit = 10)
+    mc_key = 'BLOGS'
+    posts, age = age_get(mc_key)
+    if update or posts is None:
+        posts = list(q)
+        age_set(mc_key, posts)
+    return posts, age
+    
+def age_str():
+    s = 'queried %s seconds ago'
+    age = int(age)
+    if age == 1:
+        s = s.replace('seconds', 'second')
+    return s % age
 
 class Post(db.Model):
     subject = db.StringProperty(required = True)
@@ -159,23 +195,34 @@ class Post(db.Model):
 
 class BlogFront(BlogHandler):
     def get(self):
-        posts = greetings = Post.all().order('-created')
+        posts, age = get_posts()
+        #posts = Post.all().order('-created')
         #posts = get_posts(self.request.remote_addr)
+        
         if self.format == 'html':
-            self.render('front.html', posts = posts)
+            self.render('front.html', posts = posts, age = age_str(age))
         else:
             self.render_json([p.as_dict() for p in posts])
 
 class PostPage(BlogHandler):
     def get(self, post_id):
-        key = db.Key.from_path('Post', int(post_id))
-        post = db.get(key)
+        post_key = 'POST_' + post_id
+        #key = db.Key.from_path('Post', int(post_id))
+        #post = db.get(key)
+        
+        post, age = age_get(post_key)
 
+        if not post:
+            key = db.Key.from_path('Post', int(post_id))
+            post = db.get(key)
+            age_set(post_key, post)
+            age = 0
+            
         if not post:
             self.error(404)
             return
         if self.format == 'html':
-            self.render("permalink.html", post = post)
+            self.render("permalink.html", post = post, age = age_str(age))
         else:
             self.render_json(post.as_dict())
 
@@ -286,6 +333,11 @@ class Welcome(BlogHandler):
         else:
             self.redirect('/signup')
             
+class Flush(BlogHandler):
+    def get(self):
+        
+        self.redirect('/blog')
+            
 ###########################################
 #                                         #
 #                    Main                 #
@@ -305,6 +357,7 @@ application = webapp2.WSGIApplication([
                         ('/blog/signup', Register),
                         ('/blog/login', Login),
                         ('/blog/logout', Logout), 
-                        ('/blog/welcome', Welcome)
+                        ('/blog/welcome', Welcome),
+                        ('/flush', Flush)
                         ], 
                         debug=True)
