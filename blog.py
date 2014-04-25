@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from google.appengine.api import memcache
 from google.appengine.ext import db
 
+# Constant messages for this blog
 THANKS      = "Thank you! That's a valid response."
 USER_ERR    = "That's not a valid username."
 PASS_ERR    = "That wasn't a valid password."
