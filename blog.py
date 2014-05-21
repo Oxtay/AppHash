@@ -355,10 +355,10 @@ application = webapp2.WSGIApplication([
                         ('/blog/?(?:\.json)?', BlogFront),
                         ('/blog/newpost', NewPost),
                         ('/blog/([0-9]+)(?:\.json)?', PostPage), 
-                        ('/blog/signup', Register),
-                        ('/blog/login', Login),
-                        ('/blog/logout', Logout), 
-                        ('/blog/welcome', Welcome),
+                        ('/signup', Register),
+                        ('/login', Login),
+                        ('/logout', Logout), 
+                        ('/welcome', Welcome),
                         ('/flush', Flush)
                         ], 
                         debug=True)
